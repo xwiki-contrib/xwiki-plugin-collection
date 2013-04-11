@@ -530,6 +530,7 @@ XWikiPluginInterface {
             // pdfurlfactory as well.
             String linkTarget = linkBlock.getLink().getReference();
             if (!relativized) {
+                boolean changed = false;
                 Link newLinkBlockLink = new Link();
                 if (linkType.equals(LinkType.DOCUMENT)) {
                     newLinkBlockLink.setType(LinkType.DOCUMENT);  
@@ -538,6 +539,7 @@ XWikiPluginInterface {
                     } else {
                         newLinkBlockLink.setReference(doc.getSpace() + "." + linkTarget);
                     }
+                    changed = true;
                 } else if ((linkType.equals(LinkType.URI) && linkTarget.startsWith("attach:"))) {
                     newLinkBlockLink.setType(LinkType.URI);     
                     if (linkTarget.contains("@")) {
@@ -548,16 +550,19 @@ XWikiPluginInterface {
                      else
                          newLinkBlockLink.setReference("attach:" + doc.getSpace() + "." + linkTarget.replaceAll("attach:", ""));
                     } else {
-                         newLinkBlockLink.setReference("attach:" + doc.getFullName() + linkTarget.replaceAll("attach:", ""));
+                         newLinkBlockLink.setReference("attach:" + doc.getFullName() + "@"+ linkTarget.replaceAll("attach:", ""));
                     }
+                    changed = true;
                 }
 
-                // if we have created a new link target, we need to replace it in the xdom
-                LinkBlock newLinkBlock =
+                if (changed) {
+                    // if we have created a new link target, we need to replace it in the xdom
+                    LinkBlock newLinkBlock =
                         new LinkBlock(linkBlock.getChildren(), newLinkBlockLink, false);
-                // Replace the original link
-                linkBlock.getParent().insertChildBefore(newLinkBlock, linkBlock);
-                linkBlock.getParent().getChildren().remove(linkBlock);
+                    // Replace the original link
+                    linkBlock.getParent().insertChildBefore(newLinkBlock, linkBlock);
+                    linkBlock.getParent().getChildren().remove(linkBlock);
+                }
             }
 
 		} // for linkBlocks
