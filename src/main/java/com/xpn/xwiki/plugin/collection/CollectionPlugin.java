@@ -469,13 +469,17 @@ XWikiPluginInterface {
 				headerIds.add(oldId);
 			}
 		}
+
 		// Find all the link blocks inside this XDOM
 		List<LinkBlock> linkBlocks = xdom.getChildrenByType(LinkBlock.class,
 				true);
 		// Process each link block
 		for (LinkBlock linkBlock : linkBlocks) {
+		    boolean relativized = false;
+		    LinkType linkType = linkBlock.getLink().getType();
+
 			// We are only interested in links to other pages.
-			if (linkBlock.getLink().getType() == LinkType.DOCUMENT) {
+			if (linkType == LinkType.DOCUMENT) {
 				String childDocumentName = linkBlock.getLink().getReference();
 				if (childDocumentName != null) {
 					// Create the child xdom
@@ -510,10 +514,59 @@ XWikiPluginInterface {
 						linkBlock.getParent().insertChildBefore(newLinkBlock,
 								linkBlock);
 						linkBlock.getParent().getChildren().remove(linkBlock);
+						relativized = true; 
 					} // if in selectlist or selectlist is null
 				} // if childDocumentName
 			} // if LinkType.Document
+			
+            // If we don't relativize the link to the pdf it will remain as it is, so we need to absolutize it if it's
+            // document or attachment, since it's gonna be in a different context when the full final xdom will be
+            // assembled
+            // FIXME: however, this still fails to create proper links in the final pdf for attachments, since the pdf
+            // url factory copies the attachments to a temp folder and points all urls to it, in order for the images to
+            // be properly handled. It does not make a difference whether the url is needed for image or for url.
+            // TODO: to make it work, we need to change the link completely to a full external URL for attachments, so
+            // that we bypass the pdf url factory. However, xwiki.getExternalURL() won't work since it uses
+            // pdfurlfactory as well.
+            String linkTarget = linkBlock.getLink().getReference();
+            if (!relativized) {
+                boolean changed = false;
+                Link newLinkBlockLink = new Link();
+                if (linkType.equals(LinkType.DOCUMENT)) {
+                    newLinkBlockLink.setType(LinkType.DOCUMENT);  
+                    if (linkTarget.contains(".")) {
+                        newLinkBlockLink.setReference(linkTarget);
+                    } else {
+                        newLinkBlockLink.setReference(doc.getSpace() + "." + linkTarget);
+                    }
+                    changed = true;
+                } else if ((linkType.equals(LinkType.URI) && linkTarget.startsWith("attach:"))) {
+                    newLinkBlockLink.setType(LinkType.URI);     
+                    if (linkTarget.contains("@")) {
+                     int i1 = linkTarget.indexOf("@");
+                     int i2 = linkTarget.indexOf(".");
+                     if (i2!=-1 && i2 < i1)
+                         newLinkBlockLink.setReference(linkTarget);
+                     else
+                         newLinkBlockLink.setReference("attach:" + doc.getSpace() + "." + linkTarget.replaceAll("attach:", ""));
+                    } else {
+                         newLinkBlockLink.setReference("attach:" + doc.getFullName() + "@"+ linkTarget.replaceAll("attach:", ""));
+                    }
+                    changed = true;
+                }
+
+                if (changed) {
+                    // if we have created a new link target, we need to replace it in the xdom
+                    LinkBlock newLinkBlock =
+                        new LinkBlock(linkBlock.getChildren(), newLinkBlockLink, false);
+                    // Replace the original link
+                    linkBlock.getParent().insertChildBefore(newLinkBlock, linkBlock);
+                    linkBlock.getParent().getChildren().remove(linkBlock);
+                }
+            }
+
 		} // for linkBlocks
+
 		return list;
 	}
 
