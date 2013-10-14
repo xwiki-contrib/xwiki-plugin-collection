@@ -19,15 +19,6 @@
  */
 package com.xpn.xwiki.plugin.collection;
 
-import com.xpn.xwiki.XWikiContext;
-import com.xpn.xwiki.XWikiException;
-import com.xpn.xwiki.api.Api;
-import com.xpn.xwiki.api.Document;
-import com.xpn.xwiki.doc.XWikiDocument;
-import com.xpn.xwiki.plugin.XWikiDefaultPlugin;
-import com.xpn.xwiki.plugin.XWikiPluginInterface;
-import com.xpn.xwiki.plugin.packaging.Package;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
@@ -40,6 +31,11 @@ import java.util.Map;
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.velocity.VelocityContext;
+import org.xwiki.bridge.DocumentAccessBridge;
+import org.xwiki.context.Execution;
+import org.xwiki.context.ExecutionContext;
+import org.xwiki.context.ExecutionContextException;
+import org.xwiki.context.ExecutionContextManager;
 import org.xwiki.rendering.block.Block;
 import org.xwiki.rendering.block.HeaderBlock;
 import org.xwiki.rendering.block.IdBlock;
@@ -52,17 +48,25 @@ import org.xwiki.rendering.listener.Image;
 import org.xwiki.rendering.listener.ImageType;
 import org.xwiki.rendering.listener.Link;
 import org.xwiki.rendering.listener.LinkType;
-import org.xwiki.rendering.listener.Listener;
 import org.xwiki.rendering.parser.Parser;
-import org.xwiki.rendering.syntax.Syntax;
-import org.xwiki.rendering.syntax.SyntaxType;
 import org.xwiki.rendering.renderer.BlockRenderer;
 import org.xwiki.rendering.renderer.printer.DefaultWikiPrinter;
 import org.xwiki.rendering.renderer.printer.WikiPrinter;
+import org.xwiki.rendering.syntax.Syntax;
+import org.xwiki.rendering.syntax.SyntaxFactory;
+import org.xwiki.rendering.transformation.TransformationManager;
 
+import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.api.Api;
+import com.xpn.xwiki.api.Document;
+import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.notify.DocChangeRule;
 import com.xpn.xwiki.objects.classes.ListItem;
 import com.xpn.xwiki.pdf.impl.PdfExportImpl;
+import com.xpn.xwiki.plugin.XWikiDefaultPlugin;
+import com.xpn.xwiki.plugin.XWikiPluginInterface;
+import com.xpn.xwiki.plugin.packaging.Package;
 import com.xpn.xwiki.web.Utils;
 import com.xpn.xwiki.web.XWikiURLFactory;
 
@@ -198,70 +202,73 @@ XWikiPluginInterface {
 	 * @return the transcluded result in xhtml syntax.
 	 * @throws Exception
 	 */
-	public void exportWithLinks(String packageName, XWikiDocument doc,
-			List<String> selectlist, String type, String pdftemplatepage, XWikiContext context) throws Exception {
-		// XWikiContext context2 = context.getContext();
-		// Preparing the PDF Exporter and PDF URL Factory (this last one is
-		// necessary for images includes)
-		PdfExportImpl pdfexport = new PdfExportImpl();
-		XWikiURLFactory urlf = context.getWiki().getURLFactoryService()
-		.createURLFactory(XWikiContext.MODE_PDF, context);
-		context.setURLFactory(urlf);
-		// Preparing the PDF http headers to have the browser recognize the file
-		// as PDF
-		context.getResponse().setContentType("application/" + type);
-		if (doc == null)
-			context.getResponse().addHeader("Content-disposition",
-					"inline; filename=" + packageName + "." + type);
-		else
-			context.getResponse().addHeader(
-					"Content-disposition",
-					"inline; filename="
-					+ Utils.encode(doc.getSpace(), context) + "_"
-					+ Utils.encode(doc.getName(), context) + "."
-					+ type);
-		// Preparing temporary directories for the PDF URL Factory
-		File dir = context.getWiki().getTempDirectory(context);
-		File tempdir = new File(dir, RandomStringUtils.randomAlphanumeric(8));
-		// We should call this but we cannot do it. It might not be a problem
-		// but if we have an encoding issue we should look into it
-		// this.tidy.setOutputEncoding(context2.getWiki().getEncoding());
-		// this.tidy.setInputEncoding(context2.getWiki().getEncoding());
-		try {
-			// we need to prepare the pdf export directory before running the
-			// transclusion
-			tempdir.mkdirs();
-			context.put("pdfexportdir", tempdir);
-			// running the transclusion and the final rendering to HTML
-			String content = getRenderedContentWithLinks(doc, selectlist, context);
-			// preparing velocity context for the adding of the headers and
-			// footers
-			VelocityContext vcontext = (VelocityContext) context.get("vcontext");
-			vcontext.put("content", content);
-                        Document vdoc = new Document(doc, context);
-			vcontext.put("doc", vdoc);
-			vcontext.put("cdoc", vdoc);
-			vcontext.put("tdoc", vdoc);
-     
-                        String tcontent = null;
-			// pdfmulti.vm should be declared  in the skin
-                        if (pdftemplatepage!=null) {
-                        }
-                        if (tcontent==null)
-			     tcontent = context.getWiki().parseTemplate("pdfmulti.vm", context);
-			// launching the export
-			pdfexport.exportHtml(tcontent, context.getResponse()
-					.getOutputStream(), (type.equals("rtf")) ? PdfExportImpl.RTF
-							: PdfExportImpl.PDF, context);
-		} finally {
-			// cleaning temporary directories
-			File[] filelist = tempdir.listFiles();
-			for (int i = 0; i < filelist.length; i++) {
-				filelist[i].delete();
-			}
-			tempdir.delete();
-		}
-	}
+    public void exportWithLinks(String packageName, XWikiDocument doc,
+            List<String> selectlist, String type, String pdftemplatepage, XWikiContext context) throws Exception
+    {
+        // XWikiContext context2 = context.getContext();
+        // Preparing the PDF Exporter and PDF URL Factory (this last one is
+        // necessary for images includes)
+        PdfExportImpl pdfexport = new PdfExportImpl();
+        XWikiURLFactory urlf = context.getWiki().getURLFactoryService()
+                .createURLFactory(XWikiContext.MODE_PDF, context);
+        context.setURLFactory(urlf);
+        // Preparing the PDF http headers to have the browser recognize the file
+        // as PDF
+        context.getResponse().setContentType("application/" + type);
+        if (doc == null) {
+            context.getResponse().addHeader("Content-disposition",
+                    "inline; filename=" + packageName + "." + type);
+        } else {
+            context.getResponse().addHeader(
+                    "Content-disposition",
+                    "inline; filename="
+                            + Utils.encode(doc.getSpace(), context) + "_"
+                            + Utils.encode(doc.getName(), context) + "."
+                            + type);
+        }
+        // Preparing temporary directories for the PDF URL Factory
+        File dir = context.getWiki().getTempDirectory(context);
+        File tempdir = new File(dir, RandomStringUtils.randomAlphanumeric(8));
+        // We should call this but we cannot do it. It might not be a problem
+        // but if we have an encoding issue we should look into it
+        // this.tidy.setOutputEncoding(context2.getWiki().getEncoding());
+        // this.tidy.setInputEncoding(context2.getWiki().getEncoding());
+        try {
+            // we need to prepare the pdf export directory before running the
+            // transclusion
+            tempdir.mkdirs();
+            context.put("pdfexportdir", tempdir);
+            // running the transclusion and the final rendering to HTML
+            String content = getRenderedContentWithLinks(doc, selectlist, context);
+            // preparing velocity context for the adding of the headers and
+            // footers
+            VelocityContext vcontext = (VelocityContext) context.get("vcontext");
+            vcontext.put("content", content);
+            Document vdoc = new Document(doc, context);
+            vcontext.put("doc", vdoc);
+            vcontext.put("cdoc", vdoc);
+            vcontext.put("tdoc", vdoc);
+
+            String tcontent = null;
+            // pdfmulti.vm should be declared  in the skin
+            if (pdftemplatepage != null) {
+            }
+            if (tcontent == null) {
+                tcontent = context.getWiki().parseTemplate("pdfmulti.vm", context);
+            }
+            // launching the export
+            pdfexport.exportHtml(tcontent, context.getResponse()
+                    .getOutputStream(), (type.equals("rtf")) ? PdfExportImpl.RTF
+                    : PdfExportImpl.PDF, context);
+        } finally {
+            // cleaning temporary directories
+            File[] filelist = tempdir.listFiles();
+            for (int i = 0; i < filelist.length; i++) {
+                filelist[i].delete();
+            }
+            tempdir.delete();
+        }
+    }
 
 	/**
 	 * Returns a transcluded view of the given xwiki 2.0 document.
@@ -287,7 +294,7 @@ XWikiPluginInterface {
 	throws Exception {
 		XWikiDocument doc = (documentName == null || documentName.equals("")) ? null
 				: context.getWiki().getDocument(documentName, context);
-		return getRenderedContentWithLinks((XWikiDocument) doc, selectlist, context);
+		return getRenderedContentWithLinks(doc, selectlist, context);
 	}
 
 	/**
@@ -319,8 +326,7 @@ XWikiPluginInterface {
 			addDebug("New main document is: " + childDocName);
 			doc = context.getWiki().getDocument(childDocName, context);
 		}
-		XDOM rootXdom = (doc == null) ? null : doc.getXDOM();
-		rootXdom = (rootXdom == null) ? null : rootXdom.clone();
+		XDOM rootXdom = getChildXDOM(doc, context);
 		if (rootXdom == null)
 			return "could not read the main document";
 		// add main document to included list
@@ -334,14 +340,14 @@ XWikiPluginInterface {
 		if (selectlist != null) {
 			for (String childDocumentName : selectlist) {
 				appendChild(childDocumentName.toString(), rootXdom, selectlist,
-						includedList, headerIds, context);
+					includedList, headerIds, context);
 			}
 		}
 		WikiPrinter printer = new DefaultWikiPrinter();
 		// Here I'm using the XHTML renderer, other renderers can be used simply
 		// by changing the syntax argument.
                 BlockRenderer renderer = (BlockRenderer) Utils.getComponent(BlockRenderer.class, Syntax.XHTML_1_0.toIdString());
-                renderer.render(rootXdom, printer); 
+                renderer.render(rootXdom, printer);
                 return printer.toString();
 	}
 
@@ -377,26 +383,105 @@ XWikiPluginInterface {
 			List<String> selectlist, List<String> includedList,
 			List<String> headerIds, XWikiContext context) throws Exception {
 		// make sure we don't include twice
-		if (childDocumentName == "" || includedList.contains(childDocumentName))
-			return;
+		if (childDocumentName.equals("") || includedList.contains(childDocumentName)){
+            return;
+        }
+
 		includedList.add(childDocumentName);
 		XWikiDocument childDoc = context.getWiki().getDocument(childDocumentName, context);
-		XDOM childXdom = (childDoc == null) ? null : childDoc.getXDOM();
-		childXdom = (childXdom == null) ? null : childXdom.clone();
+        /*
+         /
+         / Start EMC-823 : 4. Question number to appear in MultiPage print export
+         /
+         */
+        XDOM childXdom = getChildXDOM(childDoc, context);
+        /*
+         /
+         / Stop EMC-823 : 4. Question number to appear in MultiPage print export
+         /
+         */
+
 		// Transclude (recursive call) the child xdom.
-		if (childXdom != null)
-			getRenderedContentWithLinks(childDoc, childXdom, selectlist, includedList, headerIds, context);
+		if (childXdom != null){
+            getRenderedContentWithLinks(childDoc, childXdom, selectlist, includedList, headerIds, context);
+        }
 		// Now, before we insert the childXdom into current (parent) xdom, we
 		// must place an anchor (id macro)
 		// so that we can link to the child's content later.
-		Map<String, String> idMacroParams = new HashMap<String, String>();
 		IdBlock idBlock = new IdBlock("child_" + childDocumentName.hashCode());
 		// Append the id macro
 		xdom.addChild(idBlock);
 		// Now append the childXdom
-		if (childXdom != null)
-			xdom.addChildren(childXdom.getChildren());
+		if (childXdom != null){
+            xdom.addChildren(childXdom.getChildren());
+        }
 	}
+
+    /*
+     /
+     / Start EMC-823 : 4. Question number to appear in MultiPage print export
+     /
+     */
+
+    private XDOM getChildXDOMWithSheet(XWikiDocument childDoc, XWikiDocument sheet, XWikiContext context){
+        ExecutionContextManager executionContextManager = Utils.getComponent(ExecutionContextManager.class);
+        Execution execution = Utils.getComponent(Execution.class);
+        ExecutionContext executionContext = null;
+        try {
+            executionContext = executionContextManager.clone(execution.getContext());
+        } catch (ExecutionContextException e) {
+            e.printStackTrace();
+        }
+
+        execution.pushContext(executionContext);
+
+        Map<String, Object> backupObjects = new HashMap<String, Object>();
+        DocumentAccessBridge documentAccessBridge = Utils.getComponent(DocumentAccessBridge.class);
+        XWikiContext currentExecutionContext = (XWikiContext) executionContext.getProperty("xwikicontext");
+        String oldDatabase = currentExecutionContext.getDatabase();
+
+        try{
+            currentExecutionContext.setDatabase(childDoc.getDocumentReference().getWikiReference().getName());
+            documentAccessBridge.pushDocumentInContext(backupObjects, childDoc.getDocumentReference());
+            TransformationManager transformationManager = Utils.getComponent(TransformationManager.class);
+            SyntaxFactory syntaxFactory = Utils.getComponent(SyntaxFactory.class);
+            XDOM sheetXDOM = sheet.getXDOM().clone();
+            transformationManager.performTransformations(sheetXDOM, syntaxFactory.createSyntaxFromIdString(sheet.getSyntaxId()));
+
+            return sheetXDOM;
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            documentAccessBridge.popDocumentFromContext(backupObjects);
+            currentExecutionContext.setDatabase(oldDatabase);
+            execution.popContext();
+        }
+
+        return null;
+    }
+
+    private XDOM getChildXDOM(XWikiDocument childDoc, XWikiContext context){
+        XWikiDocument sheet = null;
+
+        try {
+            sheet = context.getWiki().getDocument("MultiPageExport.RenderSheet", context);
+        } catch (XWikiException e) {
+            e.printStackTrace();
+        }
+
+        if(sheet == null){
+            XDOM childXdom = (childDoc == null) ? null : childDoc.getXDOM();
+            return childXdom == null ? null : childXdom.clone();
+        }else {
+            return getChildXDOMWithSheet(childDoc, sheet, context);
+        }
+    }
+
+    /*
+     /
+     / Stop EMC-823 : 4. Question number to appear in MultiPage print export
+     /
+     */
 
 	/**
 	 * Update the links in the given xdom.
