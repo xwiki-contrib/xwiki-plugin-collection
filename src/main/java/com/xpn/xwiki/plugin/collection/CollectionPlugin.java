@@ -285,12 +285,16 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
             if (pdftemplatepage != null) {
             }
             if (tcontent == null) {
+                addDebug("Parsing Template pdfmulti.vm");
                 tcontent = context.getWiki().parseTemplate("pdfmulti.vm", context);
+                addDebug("Resulting Content: " + tcontent);
             }
             // launching the export
+            addDebug("Launching PDF export");
             pdfexport.exportHtml(tcontent, context.getResponse()
                 .getOutputStream(), (type.equals("rtf")) ? PdfExport.ExportType.RTF
                 : PdfExport.ExportType.PDF, context);
+            addDebug("Done PDF export");
         } finally {
             // cleaning temporary directories
             File[] filelist = tempdir.listFiles();
@@ -370,8 +374,11 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         }
         // add main document to included list
         includedList.add(doc.getFullName());
+        addDebug("Rendering document list: " + includedList);
         // Recursively transclude the root xdom
         getRenderedContentWithLinks(doc, rootXdom, selectlist, includedList, headerIds, context);
+
+        addDebug("Done Rendering document list");
 
         // If we want to ignore the initial page
         // we want an empty XDOM
@@ -381,16 +388,20 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
            rootXdom = doc2.getXDOM();
         }
 
+        addDebug("Adding child documents");
         // Render the result.
         // we are given a select list so we should append them in order
         // transclude has already modified the link to make them point to
         // anchors inside the document
         if (selectlist != null) {
             for (String childDocumentName : selectlist) {
+                addDebug("Adding child document " + childDocumentName);
                 appendChild(doc.getFullName(), childDocumentName.toString(), rootXdom, selectlist,
                     includedList, headerIds, context);
             }
         }
+
+        addDebug("Render final XDOM");
         WikiPrinter printer = new DefaultWikiPrinter();
         // Here I'm using the XHTML renderer, other renderers can be used simply
         // by changing the syntax argument.
@@ -439,6 +450,8 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         Execution execution = Utils.getComponent(Execution.class);
         ExecutionContext clonedEc = executionContextManager.clone(execution.getContext());
 
+        addDebug("Push cloned context in execution context");
+        ExecutionContext oldContext = execution.getContext();
         execution.pushContext(clonedEc);
 
         Map<String, Object> backupObjects = new HashMap<String, Object>();
@@ -452,8 +465,11 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                TransformationContext tcontext = new TransformationContext(childXdom, childDoc.getSyntax());
                txManager.performTransformations(childXdom, tcontext);
         } finally {
+               addDebug("Restoring context in execution context");
                documentAccessBridge.popDocumentFromContext(backupObjects);
                currentEcXContext.setDatabase(oldDatabase);
+               execution.pushContext(oldContext);
+               addDebug("Finish restoring context in execution context");
         }
 
         // Transclude (recursive call) the child xdom.
@@ -518,6 +534,8 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         if (childXdom != null) {
             xdom.addChildren(childXdom.getChildren());
         }
+
+        addDebug("Done appendChild");
     }
 
     /**
