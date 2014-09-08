@@ -28,7 +28,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-pom</artifactId>
-    <version>3.5.1</version>
+    <version>5.4.5</version>
   </parent>
   <artifactId>xwiki-plugin-collection</artifactId>
   <name>XWiki Platform - Plugins - Collection</name>
@@ -54,7 +54,7 @@
     </dependency>
     <dependency>
       <groupId>org.xwiki.platform</groupId>
-      <artifactId>xwiki-platform-activitystream</artifactId>
+      <artifactId>xwiki-platform-activitystream-api</artifactId>
       <version>${project.parent.version}</version>
       <scope>provided</scope>
     </dependency>

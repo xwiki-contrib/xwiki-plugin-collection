@@ -23,7 +23,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -53,7 +54,7 @@ public class CollectionActivityStream extends ActivityStreamImpl implements XWik
     /**
      * Log4J logger object to log messages in this class.
      */
-    private static final Logger LOG = Logger.getLogger(CollectionActivityStream.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CollectionActivityStream.class);
 
     public void notify(XWikiNotificationRule rule, XWikiDocument newdoc,
         XWikiDocument olddoc, int event, XWikiContext context)

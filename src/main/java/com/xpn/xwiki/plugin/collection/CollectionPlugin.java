@@ -38,11 +38,14 @@ import org.xwiki.model.reference.AttachmentReference;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.listener.HeaderLevel;
+import org.xwiki.rendering.block.Block.Axes;
 import org.xwiki.rendering.block.HeaderBlock;
 import org.xwiki.rendering.block.IdBlock;
 import org.xwiki.rendering.block.ImageBlock;
 import org.xwiki.rendering.block.LinkBlock;
 import org.xwiki.rendering.block.XDOM;
+import org.xwiki.rendering.block.match.BlockMatcher;
+import org.xwiki.rendering.block.match.ClassBlockMatcher;
 import org.xwiki.rendering.listener.reference.DocumentResourceReference;
 import org.xwiki.rendering.listener.reference.ResourceReference;
 import org.xwiki.rendering.listener.reference.ResourceType;
@@ -51,12 +54,10 @@ import org.xwiki.rendering.renderer.BlockRenderer;
 import org.xwiki.rendering.renderer.printer.DefaultWikiPrinter;
 import org.xwiki.rendering.renderer.printer.WikiPrinter;
 import org.xwiki.rendering.syntax.Syntax;
-
 import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
 import org.xwiki.context.ExecutionContextManager;
 import org.xwiki.bridge.DocumentAccessBridge;
-
 import org.xwiki.rendering.transformation.TransformationContext;
 import org.xwiki.rendering.transformation.TransformationManager;
 
@@ -515,7 +516,8 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
            HeaderBlock hBlock = new HeaderBlock(childlist, hLevel, new HashMap(), idBlock.getName());
 
            // Now we parse all headers of the child document and add the number of levels of the child main header
-           for (HeaderBlock headerBlock : childXdom.getChildrenByType(HeaderBlock.class, true)) {
+           for (HeaderBlock headerBlock : childXdom.<HeaderBlock> getBlocks(new ClassBlockMatcher(HeaderBlock.class),
+                Axes.DESCENDANT)) {
              int clevel = headerBlock.getLevel().getAsInt();
              clevel += level;
              if (clevel>6)
@@ -554,7 +556,8 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
 
         // Step 1: Find all the image blocks inside this XDOM to make sure we have absolute image links.
         //         This is necessary as the XDOM will be included in a different document
-        for (ImageBlock imageBlock : xdom.getChildrenByType(ImageBlock.class, true)) {
+        for (ImageBlock imageBlock : xdom.<ImageBlock> getBlocks(new ClassBlockMatcher(ImageBlock.class),
+            Axes.DESCENDANT)) {
             ResourceReference reference = imageBlock.getReference();
             if (reference.getType().equals(ResourceType.ATTACHMENT)) {
                 addDebug("Image old reference: " + imageBlock.getReference());
@@ -571,7 +574,8 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         }
 
         // Step 2: Resolve duplicate anchors
-        for (HeaderBlock hBlock : xdom.getChildrenByType(HeaderBlock.class, true)) {
+        for (HeaderBlock hBlock : xdom.<HeaderBlock> getBlocks(new ClassBlockMatcher(HeaderBlock.class),
+            Axes.DESCENDANT)) {
             // Check if this header id has occurred before.
             String oldId = hBlock.getId();
             if (headerIds.contains(oldId)) {
@@ -594,7 +598,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         }
 
         // Step 3: Find all the link blocks inside this XDOM
-        for (LinkBlock linkBlock : xdom.getChildrenByType(LinkBlock.class, true)) {
+        for (LinkBlock linkBlock : xdom.<LinkBlock> getBlocks(new ClassBlockMatcher(LinkBlock.class), Axes.DESCENDANT)) {
             boolean relativized = false;
             ResourceType linkType = linkBlock.getReference().getType();
             // We are only interested in links to other pages.
@@ -696,7 +700,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         List<String> linkList = new ArrayList<String>();
         // Find all the link blocks inside this XDOM
         // Process each link block
-        for (LinkBlock linkBlock : xdom.getChildrenByType(LinkBlock.class, true)) {
+        for (LinkBlock linkBlock : xdom.<LinkBlock> getBlocks(new ClassBlockMatcher(LinkBlock.class), Axes.DESCENDANT)) {
             // We are only interested in links to other pages.
             if (linkBlock.getReference().getType().equals(ResourceType.DOCUMENT)) {
                 String childDocumentName = linkBlock.getReference().getReference();
