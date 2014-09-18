@@ -30,10 +30,33 @@
     <artifactId>xwiki-commons-pom</artifactId>
     <version>5.4.5</version>
   </parent>
+  <groupId>org.xwiki.contrib</groupId>
   <artifactId>xwiki-plugin-collection</artifactId>
-  <name>XWiki Platform - Plugins - Collection</name>
-  <description>XWiki Platform - Plugins - Collection</description>
+  <name>XWiki Plugins - Collection</name>
+  <description>XWiki Collection Plugin, allows to manage and export a list of pages.</description>
   <version>1.2-SNAPSHOT</version>
+  <developers>
+    <developer>
+      <id>ldubost</id>
+      <name>Ludovic Dubost</name>
+    </developer>
+  </developers>
+  <organization>
+    <name>XWiki SAS</name>
+    <url>http://xwiki.com</url>
+  </organization>
+  <scm>
+    <connection>scm:git:git://github.com/xwiki-contrib/xwiki-plugin-collection.git</connection>
+    <developerConnection>scm:git:git@github.com:xwiki-contrib/xwiki-plugin-collection.git</developerConnection>
+    <url>https://github.com/xwiki-contrib/xwiki-plugin-collection.git</url>
+  </scm>
+  <distributionManagement>
+    <repository>
+      <id>xwiki-staging</id>
+      <name>XWiki Staging Repository</name>
+      <url>http://nexus.xwiki.org/nexus/service/local/staging/deploy/maven2/</url>
+    </repository>
+  </distributionManagement>
   <build>
     <plugins>
       <plugin>
