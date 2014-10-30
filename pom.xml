@@ -22,8 +22,7 @@
  *
 -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.xwiki.commons</groupId>
@@ -34,7 +33,7 @@
   <artifactId>xwiki-plugin-collection</artifactId>
   <name>XWiki Plugins - Collection</name>
   <description>XWiki Collection Plugin, allows to manage and export a list of pages.</description>
-  <version>1.2-SNAPSHOT</version>
+  <version>1.2</version>
   <developers>
     <developer>
       <id>ldubost</id>
@@ -49,6 +48,7 @@
     <connection>scm:git:git://github.com/xwiki-contrib/xwiki-plugin-collection.git</connection>
     <developerConnection>scm:git:git@github.com:xwiki-contrib/xwiki-plugin-collection.git</developerConnection>
     <url>https://github.com/xwiki-contrib/xwiki-plugin-collection.git</url>
+    <tag>xwiki-plugin-collection-1.2</tag>
   </scm>
   <distributionManagement>
     <repository>
