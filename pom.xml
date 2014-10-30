@@ -33,7 +33,7 @@
   <artifactId>xwiki-plugin-collection</artifactId>
   <name>XWiki Plugins - Collection</name>
   <description>XWiki Collection Plugin, allows to manage and export a list of pages.</description>
-  <version>1.4-SNAPSHOT</version>
+  <version>1.3-SNAPSHOT</version>
   <developers>
     <developer>
       <id>ldubost</id>
