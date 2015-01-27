@@ -31,21 +31,25 @@ import java.util.Map;
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.velocity.VelocityContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xwiki.bridge.DocumentAccessBridge;
+import org.xwiki.context.Execution;
+import org.xwiki.context.ExecutionContext;
+import org.xwiki.context.ExecutionContextManager;
+import org.xwiki.model.reference.AttachmentReference;
 import org.xwiki.model.reference.AttachmentReferenceResolver;
 import org.xwiki.model.reference.DocumentReferenceResolver;
-import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.AttachmentReference;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
-import org.xwiki.rendering.listener.HeaderLevel;
 import org.xwiki.rendering.block.Block.Axes;
 import org.xwiki.rendering.block.HeaderBlock;
 import org.xwiki.rendering.block.IdBlock;
 import org.xwiki.rendering.block.ImageBlock;
 import org.xwiki.rendering.block.LinkBlock;
 import org.xwiki.rendering.block.XDOM;
-import org.xwiki.rendering.block.match.BlockMatcher;
 import org.xwiki.rendering.block.match.ClassBlockMatcher;
+import org.xwiki.rendering.listener.HeaderLevel;
 import org.xwiki.rendering.listener.reference.DocumentResourceReference;
 import org.xwiki.rendering.listener.reference.ResourceReference;
 import org.xwiki.rendering.listener.reference.ResourceType;
@@ -54,10 +58,6 @@ import org.xwiki.rendering.renderer.BlockRenderer;
 import org.xwiki.rendering.renderer.printer.DefaultWikiPrinter;
 import org.xwiki.rendering.renderer.printer.WikiPrinter;
 import org.xwiki.rendering.syntax.Syntax;
-import org.xwiki.context.Execution;
-import org.xwiki.context.ExecutionContext;
-import org.xwiki.context.ExecutionContextManager;
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.rendering.transformation.TransformationContext;
 import org.xwiki.rendering.transformation.TransformationManager;
 
@@ -68,9 +68,8 @@ import com.xpn.xwiki.api.Document;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.notify.DocChangeRule;
 import com.xpn.xwiki.objects.classes.ListItem;
-import com.xpn.xwiki.pdf.impl.PdfExportImpl;
 import com.xpn.xwiki.pdf.api.PdfExport;
-import com.xpn.xwiki.pdf.api.PdfExport.ExportType;
+import com.xpn.xwiki.pdf.impl.PdfExportImpl;
 import com.xpn.xwiki.plugin.XWikiDefaultPlugin;
 import com.xpn.xwiki.plugin.XWikiPluginInterface;
 import com.xpn.xwiki.plugin.packaging.Package;
@@ -86,6 +85,8 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
     private DocumentReferenceResolver<String> currentDocumentReferenceResolver;
     
     private AttachmentReferenceResolver<String> currentAttachmentReferenceResolver;
+
+    private static final Logger LOG = LoggerFactory.getLogger(CollectionPlugin.class);
 
     public CollectionPlugin(String name, String className, XWikiContext context)
     {
@@ -109,22 +110,12 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
             // send notifications to the collection activity stream
             context.getWiki().getNotificationManager().addGeneralRule(new DocChangeRule(collectionActivityStream));
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.debug("Failed to send notification to the collection activity stream", e);
         }
     }
 
     public void virtualInit(XWikiContext context)
     {
-        try {
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void addDebug(String string)
-    {
-        // TODO Auto-generated method stub
-        System.out.println(string);
     }
 
     public Api getPluginApi(XWikiPluginInterface plugin, XWikiContext context)
@@ -235,6 +226,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
     public void exportWithLinks(String packageName, XWikiDocument doc,
         List<String> selectlist, boolean ignoreInitialPage, String type, String pdftemplatepage, XWikiContext context) throws Exception
     {
+        LOG.debug("[{}] Export with links", packageName);
         // XWikiContext context2 = context.getContext();
         // Preparing the PDF Exporter and PDF URL Factory (this last one is
         // necessary for images includes)
@@ -270,8 +262,10 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
             context.put("pdfexportdir", tempdir);
             context.put("pdfexport-file-mapping", new HashMap<String, File>());
             // running the transclusion and the final rendering to HTML
+            LOG.debug("[{}] Rendering HTML content with links", packageName);
             String content = getRenderedContentWithLinks(doc, selectlist, ignoreInitialPage, context);
-            addDebug("Content: " + content);
+            LOG.debug("[{}] rendered content: [{}]", packageName, content);
+
             // preparing velocity context for the adding of the headers and
             // footers
             VelocityContext vcontext = (VelocityContext) context.get("vcontext");
@@ -280,22 +274,18 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
             vcontext.put("doc", vdoc);
             vcontext.put("cdoc", vdoc);
             vcontext.put("tdoc", vdoc);
+            LOG.debug("[{}] Parsing Template pdfmulti.vm", packageName);
+            String tcontent = context.getWiki().parseTemplate("pdfmulti.vm", context);
+            LOG.debug("[{}] templated content: [{}]", packageName, tcontent);
 
-            String tcontent = null;
-            // pdfmulti.vm should be declared  in the skin
-            if (pdftemplatepage != null) {
-            }
-            if (tcontent == null) {
-                addDebug("Parsing Template pdfmulti.vm");
-                tcontent = context.getWiki().parseTemplate("pdfmulti.vm", context);
-                addDebug("Resulting Content: " + tcontent);
-            }
             // launching the export
-            addDebug("Launching PDF export");
+            LOG.debug("[{}] Launching export", packageName);
             pdfexport.exportHtml(tcontent, context.getResponse()
                 .getOutputStream(), (type.equals("rtf")) ? PdfExport.ExportType.RTF
                 : PdfExport.ExportType.PDF, context);
-            addDebug("Done PDF export");
+            LOG.debug("[{}] Export done", packageName);
+        } catch (Exception e) {
+            LOG.debug("[{}] Export failed", packageName, e);
         } finally {
             // cleaning temporary directories
             File[] filelist = tempdir.listFiles();
@@ -303,6 +293,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                 filelist[i].delete();
             }
             tempdir.delete();
+            LOG.debug("[{}] Export with links completed", packageName);
         }
     }
 
@@ -349,11 +340,10 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
     {
         List<String> includedList = new ArrayList<String>();
         List<String> headerIds = new ArrayList<String>();
-        addDebug("Start transclude with: " + doc);
         // if we don't have a main document
         // then we use the first document in the select list as the main one
         if (doc == null) {
-            addDebug("No main document passed");
+            LOG.debug("No main document passed to transclude, try to find one...");
             if ((selectlist == null) || (selectlist.size() < 1)) {
                 return "";
             }
@@ -365,9 +355,11 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                     childDocName = selectlist.get(1);
                 }
             }
-            addDebug("New main document is: " + childDocName);
+            LOG.debug("Main document to transclude defined to [{}]", childDocName);
             doc = context.getWiki().getDocument(childDocName, context);
         }
+        LOG.debug("[{}] Starts transclude", doc);
+
         XDOM rootXdom = (doc == null) ? null : doc.getXDOM();
         rootXdom = (rootXdom == null) ? null : rootXdom.clone();
         if (rootXdom == null) {
@@ -375,11 +367,11 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         }
         // add main document to included list
         includedList.add(doc.getFullName());
-        addDebug("Rendering document list: " + includedList);
+        LOG.debug("[{}] Rendering document list: [{}]", doc, includedList);
         // Recursively transclude the root xdom
         getRenderedContentWithLinks(doc, rootXdom, selectlist, includedList, headerIds, context);
 
-        addDebug("Done Rendering document list");
+        LOG.debug("[{}] Rendering document list done", doc);
 
         // If we want to ignore the initial page
         // we want an empty XDOM
@@ -389,20 +381,20 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
            rootXdom = doc2.getXDOM();
         }
 
-        addDebug("Adding child documents");
+        LOG.debug("[{}] Adding child documents", doc);
         // Render the result.
         // we are given a select list so we should append them in order
         // transclude has already modified the link to make them point to
         // anchors inside the document
         if (selectlist != null) {
             for (String childDocumentName : selectlist) {
-                addDebug("Adding child document " + childDocumentName);
+                LOG.debug("[{}] Adding child document [{}]", doc, childDocumentName);
                 appendChild(doc.getFullName(), childDocumentName.toString(), rootXdom, selectlist,
                     includedList, headerIds, context);
             }
         }
 
-        addDebug("Render final XDOM");
+        LOG.debug("[{}] Render final XDOM", doc);
         WikiPrinter printer = new DefaultWikiPrinter();
         // Here I'm using the XHTML renderer, other renderers can be used simply
         // by changing the syntax argument.
@@ -451,7 +443,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         Execution execution = Utils.getComponent(Execution.class);
         ExecutionContext clonedEc = executionContextManager.clone(execution.getContext());
 
-        addDebug("Push cloned context in execution context");
+        LOG.debug("[{}] Push cloned context in execution context", mainDocName);
         ExecutionContext oldContext = execution.getContext();
         execution.pushContext(clonedEc);
 
@@ -466,11 +458,11 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                TransformationContext tcontext = new TransformationContext(childXdom, childDoc.getSyntax());
                txManager.performTransformations(childXdom, tcontext);
         } finally {
-               addDebug("Restoring context in execution context");
+               LOG.debug("[{}] Restoring context in execution context", mainDocName);
                documentAccessBridge.popDocumentFromContext(backupObjects);
                currentEcXContext.setDatabase(oldDatabase);
                execution.pushContext(oldContext);
-               addDebug("Finish restoring context in execution context");
+               LOG.debug("[{}] Finish restoring context in execution context", mainDocName);
         }
 
         // Transclude (recursive call) the child xdom.
@@ -487,27 +479,27 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         // we also want to add the title unless there is already a title coming from the content
         String title = childDoc.getTitle();
         String extractedTitle = childDoc.extractTitle();
-        addDebug("Title: " + title);
-        addDebug("Extracted Title: " + extractedTitle);
+        LOG.debug("[{}] Title: [{}]", mainDocName, title);
+        LOG.debug("[{}] Extracted title: [{}]", mainDocName, extractedTitle);
         // we only insert a title if none is found automatically in the content (compatibility mode)
         if (!title.equals("") && !title.equals(extractedTitle)) {
-           String dtitle = childDoc.getDisplayTitle(context);        
-           addDebug("Inserting Title: " + dtitle);
+           String dtitle = childDoc.getDisplayTitle(context);
+           LOG.debug("[{}] Inserting title: [{}]", mainDocName, dtitle);
            Parser parser = Utils.getComponent(Parser.class, Syntax.PLAIN_1_0.toIdString());
            List childlist =  parser.parse(new StringReader(dtitle)).getChildren().get(0).getChildren();
-           addDebug("List: " + childlist);
-           addDebug("List: " + childlist.get(0));
+           LOG.debug("[{}] List: [{}]", mainDocName, childlist);
+           LOG.debug("[{}] List[0]: [{}]", mainDocName, childlist.get(0));
            // Find the title level to use based on the parent child relationships
            int level = 1;
            XWikiDocument currentDoc = childDoc;
-           addDebug("Main Doc Name: "  + mainDocName);
-           addDebug("Checking parent for " + currentDoc.getFullName() + ": "  + currentDoc.getParent());
+           LOG.debug("[{}] Checking parent for [{}] : [{}]", mainDocName, currentDoc.getFullName(),
+               currentDoc.getParent());
            while ((level<10) && (!currentDoc.getParent().equals(mainDocName)) && (!currentDoc.getParent().equals(currentDoc.getFullName()))) {
-              addDebug("Checking parent for " + currentDoc.getFullName() + ": "  + currentDoc.getParent());
               currentDoc = context.getWiki().getDocument(currentDoc.getParent(), context);
               level++;
+              LOG.debug("[{}] Checking parent for [{}] : [{}]", mainDocName, currentDoc.getFullName(), currentDoc.getParent());
            }
-           addDebug("Final level: " + level);
+           LOG.debug("[{}] Final level: [{}]", mainDocName, level);
            if (level==10)
             level = 1;
            if (level>6)
@@ -536,8 +528,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         if (childXdom != null) {
             xdom.addChildren(childXdom.getChildren());
         }
-
-        addDebug("Done appendChild");
+        LOG.debug("[{}] Done appendChild", mainDocName);
     }
 
     /**
@@ -560,16 +551,16 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
             Axes.DESCENDANT)) {
             ResourceReference reference = imageBlock.getReference();
             if (reference.getType().equals(ResourceType.ATTACHMENT)) {
-                addDebug("Image old reference: " + imageBlock.getReference());
+                LOG.debug("[{}] Image old reference: [{}]", doc, imageBlock.getReference());
                 // It's an image coming from an attachment
                 AttachmentReference resolvedReference =
                     this.currentAttachmentReferenceResolver.resolve(
                         reference.getReference(), doc.getDocumentReference());
-                addDebug("Image resolved reference: " + resolvedReference);
+                LOG.debug("[{}] Image resolved reference: [{}]", doc, resolvedReference);
                 String serializedReference = this.defaultEntityReferenceSerializer.serialize(resolvedReference);
-                addDebug("Image serialized reference: " + serializedReference);
+                LOG.debug("[{}] Image serialized reference: [{}]", doc, serializedReference);
                 reference.setReference(serializedReference);
-                addDebug("Image new reference: " + imageBlock.getReference());
+                LOG.debug("[{}] Image new reference: [{}]", doc, imageBlock.getReference());
             }
         }
 
@@ -609,7 +600,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                     if (childDocumentName.indexOf(".") == -1) {
                         childDocumentName = doc.getSpace() + "." + childDocumentName;
                     }
-                    addDebug("Found one link to: " + childDocumentName);
+                    LOG.debug("[{}] Found one link to: [{}]", doc, childDocumentName);
 
                     if (selectlist == null) {
                         list.add(childDocumentName);
@@ -710,9 +701,9 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                         childDocumentName = doc.getSpace() + "."
                             + childDocumentName;
                     }
-                    addDebug("Checking link " + childDocumentName + " in page" + doc.getFullName() + " with space " + space);
+                    LOG.debug("[{}] Checking link [{}] with space [{}]", doc, childDocumentName, space);
                     if (!childDocumentName.endsWith(".") && (space==null || childDocumentName.startsWith(space + "."))) {
-                     addDebug("Found one link to: " + childDocumentName + " in " + doc.getFullName());
+                     LOG.debug("[{}] Found one link to [{}]", doc, childDocumentName);
                      linkList.add(childDocumentName);
                     }
                 }
