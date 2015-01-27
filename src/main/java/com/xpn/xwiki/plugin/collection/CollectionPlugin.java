@@ -1055,7 +1055,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         try {
             XWikiDocument doc = context.getWiki().getDocument(docName, context);
             String page = doc.getParent();
-            if ((page != null) & !page.equals("") && !pageList.contains(page) && !page.equals("XWiki.XWikiGuest") &&
+            if ((page != null) && !page.equals("") && !pageList.contains(page) && !page.equals("XWiki.XWikiGuest") &&
                 !page.equals("XWiki.XWikiUsers"))
             {
                 pageList.add(page);
