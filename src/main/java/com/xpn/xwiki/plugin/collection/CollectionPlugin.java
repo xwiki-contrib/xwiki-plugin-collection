@@ -22,11 +22,15 @@ package com.xpn.xwiki.plugin.collection;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.StringUtils;
@@ -37,11 +41,13 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
 import org.xwiki.context.ExecutionContextManager;
+import org.xwiki.environment.Environment;
 import org.xwiki.model.reference.AttachmentReference;
 import org.xwiki.model.reference.AttachmentReferenceResolver;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.rendering.block.Block;
 import org.xwiki.rendering.block.Block.Axes;
 import org.xwiki.rendering.block.HeaderBlock;
 import org.xwiki.rendering.block.IdBlock;
@@ -59,6 +65,7 @@ import org.xwiki.rendering.renderer.printer.DefaultWikiPrinter;
 import org.xwiki.rendering.renderer.printer.WikiPrinter;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.rendering.transformation.TransformationContext;
+import org.xwiki.rendering.transformation.TransformationException;
 import org.xwiki.rendering.transformation.TransformationManager;
 
 import com.xpn.xwiki.XWikiContext;
@@ -66,7 +73,6 @@ import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.api.Api;
 import com.xpn.xwiki.api.Document;
 import com.xpn.xwiki.doc.XWikiDocument;
-import com.xpn.xwiki.notify.DocChangeRule;
 import com.xpn.xwiki.objects.classes.ListItem;
 import com.xpn.xwiki.pdf.api.PdfExport;
 import com.xpn.xwiki.pdf.impl.PdfExportImpl;
@@ -78,8 +84,6 @@ import com.xpn.xwiki.web.XWikiURLFactory;
 
 public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginInterface
 {
-    protected CollectionActivityStream collectionActivityStream;
-
     private EntityReferenceSerializer<String> defaultEntityReferenceSerializer;
 
     private DocumentReferenceResolver<String> currentDocumentReferenceResolver;
@@ -88,10 +92,14 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
 
     private static final Logger LOG = LoggerFactory.getLogger(CollectionPlugin.class);
 
+    /**
+     * Used to get the temporary directory.
+     */
+    private Environment environment = Utils.getComponent((Type) Environment.class);
+
     public CollectionPlugin(String name, String className, XWikiContext context)
     {
         super(name, className, context);
-        collectionActivityStream = new CollectionActivityStream();
     }
 
     public String getName()
@@ -106,12 +114,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         this.currentDocumentReferenceResolver = Utils.getComponent(DocumentReferenceResolver.class, "current");
         this.currentAttachmentReferenceResolver = Utils.getComponent(AttachmentReferenceResolver.class, "current");
 
-        try {
-            // send notifications to the collection activity stream
-            context.getWiki().getNotificationManager().addGeneralRule(new DocChangeRule(collectionActivityStream));
-        } catch (Exception e) {
-            LOG.debug("Failed to send notification to the collection activity stream", e);
-        }
     }
 
     public void virtualInit(XWikiContext context)
@@ -249,7 +251,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                     + type);
         }
         // Preparing temporary directories for the PDF URL Factory
-        File dir = context.getWiki().getTempDirectory(context);
+        File dir = this.environment.getTemporaryDirectory();
         File tempdir = new File(dir, RandomStringUtils.randomAlphanumeric(8));
         // We should call this but we cannot do it. It might not be a problem
         // but if we have an encoding issue we should look into it
@@ -285,7 +287,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                 : PdfExport.ExportType.PDF, context);
             LOG.debug("[{}] Export done", packageName);
         } catch (Exception e) {
-            LOG.debug("[{}] Export failed", packageName, e);
+            LOG.error("[{}] Export failed", packageName, e);
         } finally {
             // cleaning temporary directories
             File[] filelist = tempdir.listFiles();
@@ -461,7 +463,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
                LOG.debug("[{}] Restoring context in execution context", mainDocName);
                documentAccessBridge.popDocumentFromContext(backupObjects);
                currentEcXContext.setDatabase(oldDatabase);
-               execution.pushContext(oldContext);
+               execution.pushContext(oldContext, false);
                LOG.debug("[{}] Finish restoring context in execution context", mainDocName);
         }
 
@@ -478,12 +480,12 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
 
         // we also want to add the title unless there is already a title coming from the content
         String title = childDoc.getTitle();
-        String extractedTitle = childDoc.extractTitle();
+        String extractedTitle = extractTitleFromContent(childDoc);
         LOG.debug("[{}] Title: [{}]", mainDocName, title);
         LOG.debug("[{}] Extracted title: [{}]", mainDocName, extractedTitle);
         // we only insert a title if none is found automatically in the content (compatibility mode)
         if (!title.equals("") && !title.equals(extractedTitle)) {
-           String dtitle = childDoc.getDisplayTitle(context);
+           String dtitle = childDoc.getRenderedTitle(context);
            LOG.debug("[{}] Inserting title: [{}]", mainDocName, dtitle);
            Parser parser = Utils.getComponent(Parser.class, Syntax.PLAIN_1_0.toIdString());
            List childlist =  parser.parse(new StringReader(dtitle)).getChildren().get(0).getChildren();
@@ -737,7 +739,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         List<String> safeList = new ArrayList<String>();
         safeList.add(documentName);
         treeList.add(new ListItem(documentName, context.getWiki().getDocument(documentName, context)
-            .getDisplayTitle(context), ""));
+            .getRenderedTitle(context), ""));
         getLinksTreeList(documentName, space, treeList, safeList, context);
         return treeList;
     }
@@ -755,7 +757,7 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
             if (!safeList.contains(link)) {
                 safeList.add(link);
                 treeList.add(new ListItem(link.toString(), context.getWiki().getDocument(
-                    link.toString(), context).getDisplayTitle(context), documentName));
+                    link.toString(), context).getRenderedTitle(context), documentName));
                 getLinksTreeList(link.toString(), space, treeList, safeList, context);
             }
         }
@@ -767,15 +769,15 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
      *
      * @return list of linked pages
      */
-    public List<String> getLinkedPages(XWikiDocument document, XWikiContext context)
+    public Set<String> getLinkedPages(XWikiDocument document, XWikiContext context)
     {
         XWikiDocument olddocument = context.getDoc();
         try {
             if (document == null) {
-                return new ArrayList<String>();
+                return new TreeSet<>();
             } else {
                 context.setDoc(document);
-                return document.getLinkedPages(context);
+                return document.getUniqueLinkedPages(context);
             }
         } finally {
             if (olddocument != null) {
@@ -1089,4 +1091,55 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
         // now continue the BC from the last page using the parent information
         return getBreadcrumbFromParents(lastPage, pageList, context);
     }
+
+    /** Copied from XWikiDocumentCompatibilityAspect.aj#extractTitle
+     *
+     * @param doc
+     * @return
+     * @throws TransformationException
+     */
+    public String extractTitleFromContent(XWikiDocument doc) throws TransformationException, XWikiException
+    {
+        String title = "";
+        List<HeaderBlock> blocks =
+            doc.getXDOM().getBlocks(new ClassBlockMatcher(HeaderBlock.class), Block.Axes.DESCENDANT);
+        if (!blocks.isEmpty()) {
+            HeaderBlock header = blocks.get(0);
+            if (header.getLevel().compareTo(HeaderLevel.LEVEL2) <= 0) {
+                XDOM headerXDOM = new XDOM(Collections.<Block> singletonList(header));
+
+                // transform
+                TransformationContext context = new TransformationContext(headerXDOM, doc.getSyntax());
+                Utils.getComponent(TransformationManager.class).performTransformations(headerXDOM, context);
+
+                // render
+                Block headerBlock = headerXDOM.getChildren().get(0);
+                if (headerBlock instanceof HeaderBlock) {
+                    title = renderXDOM(new XDOM(headerBlock.getChildren()), Syntax.XHTML_1_0);
+                }
+            }
+        }
+        return title;
+    }
+
+    /**
+     * Copied from renderXDOM(XDOM, Syntax) in XWikiDocument
+     * @param content
+     * @param targetSyntax
+     * @return
+     * @throws XWikiException
+     */
+    static String renderXDOM(XDOM content, Syntax targetSyntax) throws XWikiException
+    {
+        try {
+            BlockRenderer renderer = Utils.getComponent(BlockRenderer.class, targetSyntax.toIdString());
+            WikiPrinter printer = new DefaultWikiPrinter();
+            renderer.render(content, printer);
+            return printer.toString();
+        } catch (Exception e) {
+            throw new XWikiException(XWikiException.MODULE_XWIKI_RENDERING, XWikiException.ERROR_XWIKI_UNKNOWN,
+                "Failed to render document to syntax [" + targetSyntax + "]", e);
+        }
+    }
+
 }

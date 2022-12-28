@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -325,7 +326,7 @@ public class CollectionPluginApi extends Api
      *
      * @return list of linked pages
      */
-    public List<String> getLinkedPages(String documentName)
+    public Set<String> getLinkedPages(String documentName)
     {
         try {
             if (hasAccessLevel("view", documentName)) {
