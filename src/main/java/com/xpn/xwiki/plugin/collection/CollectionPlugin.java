@@ -164,7 +164,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
      * Returns a pdf or rtf of a transcluded view of the given xwiki 2.0 document.
      *
      * @param documentName name of the input document, should be a xwiki 2.0 document.
-     * @return the transcluded result in xhtml syntax.
      */
     public void exportWithLinks(String documentName, String type, XWikiContext context) throws Exception
     {
@@ -175,7 +174,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
      * Returns a pdf or rtf of a transcluded view of the given xwiki 2.0 document.
      *
      * @param documentName name of the input document, should be a xwiki 2.0 document.
-     * @return the transcluded result in xhtml syntax.
      */
     public void exportWithLinks(String documentName,
         List<String> selectlist, String type, XWikiContext context) throws Exception
@@ -187,7 +185,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
      * Returns a pdf or rtf of a transcluded view of the given xwiki 2.0 document.
      *
      * @param documentName name of the input document, should be a xwiki 2.0 document.
-     * @return the transcluded result in xhtml syntax.
      */
     public void exportWithLinks(String packageName, String documentName,
         List<String> selectlist, String type, XWikiContext context) throws Exception
@@ -199,7 +196,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
      * Returns a pdf or rtf of a transcluded view of the given xwiki 2.0 document.
      *
      * @param documentName name of the input document, should be a xwiki 2.0 document.
-     * @return the transcluded result in xhtml syntax.
      */
     public void exportWithLinks(String packageName, String documentName,
         List<String> selectlist, boolean ignoreInitialPage, String type, XWikiContext context) throws Exception
@@ -211,8 +207,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
 
     /**
      * Returns a pdf of the transcluded view of the given xwiki 2.0 document.
-     *
-     * @return the transcluded result in xhtml syntax.
      */
     public void exportWithLinks(String packageName, XWikiDocument doc,
         List<String> selectlist, boolean ignoreInitialPage, String type, XWikiContext context) throws Exception
@@ -222,8 +216,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
 
     /**
      * Returns a pdf of the transcluded view of the given xwiki 2.0 document.
-     *
-     * @return the transcluded result in xhtml syntax.
      */
     public void exportWithLinks(String packageName, XWikiDocument doc,
         List<String> selectlist, boolean ignoreInitialPage, String type, String pdftemplatepage, XWikiContext context) throws Exception
@@ -748,7 +740,6 @@ public class CollectionPlugin extends XWikiDefaultPlugin implements XWikiPluginI
      * Returns the recursive list of linked docs in the given xwiki 2.0 document.
      *
      * @param documentName name of the input document, should be a xwiki 2.0 document.
-     * @return list of linked docs
      */
     public void getLinksTreeList(String documentName, String space, List<ListItem> treeList,
         List<String> safeList, XWikiContext context) throws Exception
